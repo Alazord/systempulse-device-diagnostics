@@ -1,0 +1,7 @@
+{
+  "name": "SystemPulse - Device Diagnostics",
+  "description": "A high-performance system diagnostic dashboard that analyzes CPU cores, GPU capabilities, memory, and network quality to determine device performance levels.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
