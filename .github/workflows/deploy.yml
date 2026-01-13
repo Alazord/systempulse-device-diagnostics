@@ -36,6 +36,9 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NODE_ENV: production
       
+      - name: Create .nojekyll file
+        run: touch ./dist/.nojekyll
+      
       - name: Setup Pages
         uses: actions/configure-pages@v4
       
