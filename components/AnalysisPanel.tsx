@@ -16,15 +16,18 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ data }) => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `
-        As a hardware expert, analyze this device data and provide a concise (max 100 words) summary of what this device is suitable for (e.g. casual browsing, high-end gaming, pro video editing).
+        As a hardware expert, analyze this device's browser-exposed diagnostic data:
         
-        Performance Level: ${data.performanceLevel}
-        CPU Cores: ${data.capabilities.cpuCores}
-        Memory: ${data.capabilities.deviceMemory}GB
-        GPU: ${data.capabilities.gpu?.renderer || 'Unknown'}
-        Benchmark: ${data.slowDevice.duration?.toFixed(2)}ms
+        - Performance Tier: ${data.performanceLevel}
+        - CPU/Memory: ${data.capabilities.cpuCores} cores, ${data.capabilities.deviceMemory}GB RAM
+        - RAM Note: ${data.capabilities.isMemoryCapped ? 'This 8GB value is a browser reporting cap; actual RAM is likely much higher (16GB, 32GB, or 64GB).' : 'Reported value is likely accurate.'}
+        - Display: ${data.capabilities.refreshRate}Hz
+        - Graphics: ${data.capabilities.gpu?.renderer || 'Unknown'}
+        - Power: ${data.capabilities.battery.level}% (Charging: ${data.capabilities.battery.charging})
+        - Stress Benchmark: ${data.slowDevice.duration?.toFixed(2)}ms
         
-        Give a verdict and one pro-tip for optimizing this specific setup.
+        Provide a concise, expert breakdown (max 80 words). If memory is capped at 8GB, briefly explain why the browser limits this stat. 
+        Add one actionable "pro-tip" to improve its longevity or performance.
       `;
       
       const response = await ai.models.generateContent({
@@ -34,7 +37,7 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ data }) => {
       
       setAnalysis(response.text || 'Unable to generate analysis.');
     } catch (err) {
-      setAnalysis('Connect to the internet or check API settings for AI hardware analysis.');
+      setAnalysis('Connect to the internet to allow the Gemini Engine to analyze these hardware specs.');
     } finally {
       setLoading(false);
     }
@@ -46,26 +49,34 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ data }) => {
   }, [data.timestamp]);
 
   return (
-    <div className="glass-card p-6 rounded-2xl border-l-4 border-indigo-500 mt-8">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <i className="fas fa-microchip text-indigo-400"></i>
+    <div className="glass-card p-8 rounded-3xl border-l-4 border-indigo-500 mt-8 relative overflow-hidden group shadow-2xl">
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+        <i className="fas fa-brain text-8xl"></i>
+      </div>
+      
+      <div className="flex items-center justify-between mb-6 relative z-10">
+        <h2 className="text-xl font-black flex items-center gap-3 text-white uppercase tracking-tighter">
+          <span className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
+            <i className="fas fa-sparkles text-indigo-400 text-xs"></i>
+          </span>
           AI System Verdict
         </h2>
         {loading && <div className="animate-spin h-5 w-5 border-2 border-indigo-500 border-t-transparent rounded-full"></div>}
       </div>
       
-      {loading ? (
-        <div className="space-y-3">
-          <div className="h-4 bg-slate-800 rounded w-3/4 animate-pulse"></div>
-          <div className="h-4 bg-slate-800 rounded w-full animate-pulse"></div>
-          <div className="h-4 bg-slate-800 rounded w-5/6 animate-pulse"></div>
-        </div>
-      ) : (
-        <p className="text-slate-300 leading-relaxed text-sm md:text-base italic">
-          "{analysis}"
-        </p>
-      )}
+      <div className="relative z-10">
+        {loading ? (
+          <div className="space-y-3">
+            <div className="h-4 bg-slate-800 rounded w-3/4 animate-pulse"></div>
+            <div className="h-4 bg-slate-800 rounded w-full animate-pulse"></div>
+            <div className="h-4 bg-slate-800 rounded w-5/6 animate-pulse"></div>
+          </div>
+        ) : (
+          <p className="text-slate-200 leading-relaxed text-base font-medium">
+            {analysis}
+          </p>
+        )}
+      </div>
     </div>
   );
 };

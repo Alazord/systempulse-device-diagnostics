@@ -12,16 +12,22 @@ export interface GPUInfo {
   vendor: string | null;
 }
 
-export interface ConnectionInfo {
-  type: string | null;
-  effectiveType: string | null;
-  downlink: number | null;
-  rtt: number | null;
+export interface BatteryInfo {
+  level: number | null;
+  charging: boolean | null;
+  supported: boolean;
+}
+
+export interface StorageInfo {
+  quota: number | null;
+  usage: number | null;
+  supported: boolean;
 }
 
 export interface DeviceCapabilities {
   cpuCores: number;
   deviceMemory: number | null;
+  isMemoryCapped: boolean;
   gpu: GPUInfo | null;
   platform: string | null;
   userAgent: string;
@@ -32,6 +38,9 @@ export interface DeviceCapabilities {
   connectionEffectiveType: string | null;
   connectionDownlink: number | null;
   connectionRtt: number | null;
+  battery: BatteryInfo;
+  storage: StorageInfo;
+  refreshRate: number | null;
 }
 
 export interface BenchmarkResult {
@@ -44,6 +53,7 @@ export interface ScoreDetails {
   lowMemory: boolean;
   weakGPU: boolean;
   slowDevice: boolean;
+  throttledState: boolean;
   totalScore: number;
 }
 
