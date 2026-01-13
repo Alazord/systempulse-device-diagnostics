@@ -193,8 +193,8 @@ const App: React.FC = () => {
       
       case 'computeDelay':
         if (!value) return 'neutral';
-        if (value <= 8) return 'good';
-        if (value <= 15) return 'warning';
+        if (value <= 12) return 'good';
+        if (value <= 18) return 'warning';
         return 'bad';
       
       default:

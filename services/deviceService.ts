@@ -17,7 +17,7 @@ const CONFIG = {
   highMemoryThreshold: 8,
   minTextureSize: 4096,
   minVertexUniformVectors: 1024,
-  slowDeviceThreshold: 8,
+  slowDeviceThreshold: 18,
   fallbackCores: 2,
 };
 
