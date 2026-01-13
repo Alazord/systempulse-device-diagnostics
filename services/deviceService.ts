@@ -140,9 +140,17 @@ async function runSingleBenchmark(): Promise<number | null> {
       for (let i = 0; i < iterations; i++) {
         x += Math.sqrt(i);
       }
-      // Prevent dead code elimination (x is used but compiler might optimize away)
-      if (x < 0) console.debug(x);
+      // Prevent dead code elimination - use result in a way compiler can't optimize
+      // Store in a way that forces computation to be kept
+      const result = x;
       const duration = performance.now() - start;
+      
+      // Force result to be used (prevents optimization)
+      if (result !== result) {
+        // This will never be true, but prevents optimization
+        console.debug(result);
+      }
+      
       resolve(duration);
     } catch (error) {
       console.error('Benchmark error:', error);
@@ -151,69 +159,125 @@ async function runSingleBenchmark(): Promise<number | null> {
   });
 }
 
+// Warmup function to trigger JIT compilation and stabilize CPU
+async function warmupCPU(): Promise<void> {
+  return new Promise((resolve) => {
+    let x = 0;
+    const warmupIterations = 1e5;
+    for (let i = 0; i < warmupIterations; i++) {
+      x += Math.sqrt(i);
+    }
+    // Force computation
+    if (x !== x) console.debug(x);
+    // Small delay to let CPU stabilize
+    setTimeout(resolve, 50);
+  });
+}
+
 async function runCPUStatsBenchmark(): Promise<BenchmarkResult> {
   return new Promise((resolve) => {
     const runMultipleTests = async () => {
       try {
-        const rounds = 7; // Run 7 rounds for better accuracy
+        // Warmup phase: trigger JIT compilation and stabilize CPU
+        await warmupCPU();
+        
+        const rounds = 11; // Increased from 7 to 11 for better statistical accuracy
         const results: number[] = [];
+        const minValidResults = 5; // Require at least 5 valid results
         
         // Run benchmarks sequentially to avoid interference
         for (let i = 0; i < rounds; i++) {
           const duration = await runSingleBenchmark();
-          if (duration !== null) {
+          if (duration !== null && duration > 0) {
             results.push(duration);
           }
-          // Small delay between rounds to let CPU cool down slightly
+          // Longer delay between rounds to let CPU stabilize and cool down
           if (i < rounds - 1) {
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
         }
         
-        if (results.length === 0) {
+        // Require minimum number of valid results
+        if (results.length < minValidResults) {
           resolve({ isSlow: false, duration: null });
           return;
         }
         
-        // Sort and take median (more stable than mean)
+        // Sort results for statistical analysis
         results.sort((a, b) => a - b);
-        const medianIndex = Math.floor(results.length / 2);
-        const medianDuration = results.length % 2 === 0
-          ? (results[medianIndex - 1] + results[medianIndex]) / 2
-          : results[medianIndex];
         
-        // Calculate variance to check consistency
-        const mean = results.reduce((a, b) => a + b, 0) / results.length;
-        const variance = results.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / results.length;
-        const stdDev = Math.sqrt(variance);
-        const coefficientOfVariation = stdDev / mean;
+        // Calculate quartiles for outlier detection
+        const q1Index = Math.floor(results.length * 0.25);
+        const q3Index = Math.floor(results.length * 0.75);
+        const q1 = results[q1Index];
+        const q3 = results[q3Index];
+        const iqr = q3 - q1;
         
-        // Use trimmed mean (remove outliers) for more stable results
-        // Remove top and bottom 20% of results, then take mean of middle 60%
-        const trimCount = Math.floor(results.length * 0.2);
-        const trimmedResults = results.slice(trimCount, results.length - trimCount);
+        // Remove outliers using IQR method (more robust than simple trimming)
+        // Outliers are values outside Q1 - 1.5*IQR or Q3 + 1.5*IQR
+        const lowerBound = q1 - 1.5 * iqr;
+        const upperBound = q3 + 1.5 * iqr;
+        const filteredResults = results.filter(r => r >= lowerBound && r <= upperBound);
+        
+        // If too many outliers removed, use original results
+        const validResults = filteredResults.length >= minValidResults ? filteredResults : results;
+        
+        // Calculate median (most robust central tendency measure)
+        const medianIndex = Math.floor(validResults.length / 2);
+        const medianDuration = validResults.length % 2 === 0
+          ? (validResults[medianIndex - 1] + validResults[medianIndex]) / 2
+          : validResults[medianIndex];
+        
+        // Calculate trimmed mean (remove top and bottom 25% for robustness)
+        const trimCount = Math.floor(validResults.length * 0.25);
+        const trimmedResults = validResults.slice(trimCount, validResults.length - trimCount);
         const trimmedMean = trimmedResults.reduce((a, b) => a + b, 0) / trimmedResults.length;
         
-        // Use the more stable value: prefer trimmed mean if variance is high, otherwise use median
-        const stableDuration = coefficientOfVariation > 0.15 ? trimmedMean : medianDuration;
+        // Calculate variance and coefficient of variation
+        const mean = validResults.reduce((a, b) => a + b, 0) / validResults.length;
+        const variance = validResults.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / validResults.length;
+        const stdDev = Math.sqrt(variance);
+        const coefficientOfVariation = mean > 0 ? stdDev / mean : 0;
         
-        // If variance is high (>20%), use a more lenient threshold to avoid false positives
-        // Otherwise use the standard threshold
-        const adjustedThreshold = coefficientOfVariation > 0.2 
-          ? CONFIG.slowDeviceThreshold * 1.5  // 50% more lenient if high variance
-          : CONFIG.slowDeviceThreshold;
+        // Use median if variance is low, trimmed mean if variance is moderate, median if very high variance
+        // Median is more robust to outliers, trimmed mean is better for normal distributions
+        let stableDuration: number;
+        if (coefficientOfVariation < 0.1) {
+          // Low variance: use trimmed mean (more precise)
+          stableDuration = trimmedMean;
+        } else if (coefficientOfVariation < 0.25) {
+          // Moderate variance: use median (more robust)
+          stableDuration = medianDuration;
+        } else {
+          // High variance: use median and be more lenient with threshold
+          stableDuration = medianDuration;
+        }
+        
+        // Adjust threshold based on variance to avoid false positives
+        // High variance might indicate background processes or thermal throttling
+        let adjustedThreshold = CONFIG.slowDeviceThreshold;
+        if (coefficientOfVariation > 0.25) {
+          // Very high variance: 75% more lenient
+          adjustedThreshold = CONFIG.slowDeviceThreshold * 1.75;
+        } else if (coefficientOfVariation > 0.15) {
+          // High variance: 50% more lenient
+          adjustedThreshold = CONFIG.slowDeviceThreshold * 1.5;
+        }
         
         const isSlow = stableDuration > adjustedThreshold;
         resolve({ isSlow, duration: stableDuration });
-      } catch {
+      } catch (error) {
+        console.error('Benchmark error:', error);
         resolve({ isSlow: false, duration: null });
       }
     };
 
+    // Use requestIdleCallback if available, but with longer timeout for better stability
     if (typeof (window as any).requestIdleCallback !== 'undefined') {
-      (window as any).requestIdleCallback(runMultipleTests, { timeout: 5000 });
+      (window as any).requestIdleCallback(runMultipleTests, { timeout: 10000 });
     } else {
-      setTimeout(runMultipleTests, 50);
+      // Longer initial delay to let page settle
+      setTimeout(runMultipleTests, 200);
     }
   });
 }
