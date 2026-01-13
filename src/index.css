@@ -6,11 +6,21 @@ body {
   background-color: #0f172a;
   color: #f8fafc;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* Improve touch targets for mobile */
+button, a {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Glass card effect */
 .glass-card {
   background: rgba(30, 41, 59, 0.7);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -18,5 +28,18 @@ body {
   0% { transform: scale(0.33); opacity: 0; }
   50% { opacity: 0.1; }
   100% { transform: scale(1); opacity: 0; }
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  /* Ensure readable text on small screens */
+  body {
+    font-size: 16px;
+  }
+  
+  /* Better spacing on mobile */
+  .glass-card {
+    padding: 1.5rem;
+  }
 }
 

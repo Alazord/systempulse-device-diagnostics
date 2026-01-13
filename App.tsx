@@ -135,16 +135,16 @@ const App: React.FC = () => {
           <p className="text-slate-400 text-sm md:text-base font-medium">Real-time device capability & performance analytics</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-center md:justify-end">
           <button 
             onClick={refreshDiagnostics}
             disabled={loading}
-            className="group relative px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl transition-all duration-300 flex items-center gap-3 border border-slate-700 disabled:opacity-50"
+            className="group relative px-4 md:px-6 py-2.5 md:py-3 bg-slate-800 active:bg-slate-700 hover:bg-slate-700 text-slate-100 rounded-xl transition-all duration-300 flex items-center gap-2 md:gap-3 border border-slate-700 disabled:opacity-50 touch-manipulation min-h-[44px] text-sm md:text-base"
           >
             <i className={`fas fa-sync-alt ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`}></i>
             <span className="font-bold">Refresh Health</span>
             {autoRefreshEnabled && !loading && (
-              <span className="text-xs text-slate-400 font-normal ml-2">
+              <span className="text-xs text-slate-400 font-normal ml-1 md:ml-2">
                 ({countdown}s)
               </span>
             )}
@@ -156,10 +156,10 @@ const App: React.FC = () => {
                 setCountdown(10);
               }
             }}
-            className={`px-4 py-3 rounded-xl transition-all duration-300 flex items-center gap-2 border ${
+            className={`px-3 md:px-4 py-2.5 md:py-3 rounded-xl transition-all duration-300 flex items-center gap-2 border touch-manipulation min-h-[44px] ${
               autoRefreshEnabled 
-                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border-slate-700'
+                ? 'bg-emerald-500/10 active:bg-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                : 'bg-slate-800 active:bg-slate-700 hover:bg-slate-700 text-slate-400 border-slate-700'
             }`}
             title={autoRefreshEnabled ? 'Disable auto-refresh' : 'Enable auto-refresh'}
           >
@@ -185,10 +185,10 @@ const App: React.FC = () => {
                   </span>
                 )}
               </div>
-              <h2 className="text-5xl md:text-6xl font-black text-white mb-4">
+              <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-white mb-4">
                 {result.performanceLevel} <span className={levelColorClasses.text}>Grade</span>
               </h2>
-              <p className="text-slate-400 text-lg max-w-xl leading-relaxed">
+              <p className="text-slate-400 text-base md:text-lg max-w-xl leading-relaxed">
                 Your system is currently rated as <strong className={levelColorClasses.textStrong}>{result.performanceLevel}</strong>. 
                 {result.capabilities.isMemoryCapped && " RAM reporting is capped at 8GB by your browser for privacy."}
               </p>
