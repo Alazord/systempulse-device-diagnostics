@@ -14,17 +14,23 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ data }) => {
   const fetchAIAnalysis = async () => {
     setLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        setAnalysis('API key not configured. Please set GEMINI_API_KEY environment variable.');
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       const prompt = `
         As a hardware expert, analyze this device's browser-exposed diagnostic data:
         
         - Performance Tier: ${data.performanceLevel}
-        - CPU/Memory: ${data.capabilities.cpuCores} cores, ${data.capabilities.deviceMemory}GB RAM
+        - CPU/Memory: ${data.capabilities.cpuCores} cores, ${data.capabilities.deviceMemory ?? 'N/A'}GB RAM
         - RAM Note: ${data.capabilities.isMemoryCapped ? 'This 8GB value is a browser reporting cap; actual RAM is likely much higher (16GB, 32GB, or 64GB).' : 'Reported value is likely accurate.'}
-        - Display: ${data.capabilities.refreshRate}Hz
+        - Display: ${data.capabilities.refreshRate ?? 'N/A'}Hz
         - Graphics: ${data.capabilities.gpu?.renderer || 'Unknown'}
-        - Power: ${data.capabilities.battery.level}% (Charging: ${data.capabilities.battery.charging})
-        - Stress Benchmark: ${data.slowDevice.duration?.toFixed(2)}ms
+        - Power: ${data.capabilities.battery.level ?? 'N/A'}% (Charging: ${data.capabilities.battery.charging ?? 'N/A'})
+        - Stress Benchmark: ${data.slowDevice.duration?.toFixed(2) ?? 'N/A'}ms
         
         Provide a concise, expert breakdown (max 80 words). If memory is capped at 8GB, briefly explain why the browser limits this stat. 
         Add one actionable "pro-tip" to improve its longevity or performance.
@@ -37,6 +43,7 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ data }) => {
       
       setAnalysis(response.text || 'Unable to generate analysis.');
     } catch (err) {
+      console.error('AI Analysis error:', err);
       setAnalysis('Connect to the internet to allow the Gemini Engine to analyze these hardware specs.');
     } finally {
       setLoading(false);

@@ -135,13 +135,17 @@ async function runSingleBenchmark(): Promise<number | null> {
     try {
       const start = performance.now();
       let x = 0;
-      for (let i = 0; i < 5e6; i++) {
+      // Use a fixed iteration count for consistent benchmarking
+      const iterations = 5e6;
+      for (let i = 0; i < iterations; i++) {
         x += Math.sqrt(i);
       }
+      // Prevent dead code elimination (x is used but compiler might optimize away)
       if (x < 0) console.debug(x);
       const duration = performance.now() - start;
       resolve(duration);
-    } catch {
+    } catch (error) {
+      console.error('Benchmark error:', error);
       resolve(null);
     }
   });
