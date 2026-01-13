@@ -246,37 +246,85 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
     const isApple = vendor.includes('apple') || userAgent.includes('apple');
     
     // Check for ARM architecture (Apple Silicon uses ARM)
-    const isARM = userAgent.includes('arm') || userAgent.includes('aarch64');
+    const isARM = userAgent.includes('arm') || 
+                  userAgent.includes('aarch64') ||
+                  userAgent.includes('apple m') ||
+                  userAgent.includes('apple silicon');
     
-    // Apple Silicon Macs: Mac platform + Apple vendor + typically ARM
-    // Note: Some Intel Macs might match Mac + Apple, but they would have x86_64 in userAgent
-    const isIntelMac = userAgent.includes('intel') || userAgent.includes('x86_64');
+    // Explicit Intel detection - Intel Macs will have these indicators
+    const isIntelMac = userAgent.includes('intel') || 
+                       userAgent.includes('x86_64') || 
+                       userAgent.includes('x86-64') ||
+                       userAgent.includes('intel mac');
     
-    return isMac && isApple && !isIntelMac;
+    // Apple Silicon detection:
+    // 1. Mac + Apple vendor + ARM architecture = definitely Apple Silicon
+    // 2. Mac + Apple vendor + no Intel indicators = likely Apple Silicon (modern Macs)
+    //    Intel Macs were discontinued in 2020, so Macs without Intel indicators are Apple Silicon
+    if (isMac && isApple) {
+      if (isARM) {
+        return true; // Definitely Apple Silicon if ARM
+      }
+      if (isIntelMac) {
+        return false; // Definitely Intel Mac
+      }
+      // Modern Macs (2020+) without Intel indicators are Apple Silicon
+      // This catches cases where userAgent might not explicitly mention ARM
+      return true;
+    }
+    
+    return false;
   }
 
   // Estimate physical CPU cores from logical cores
-  // Apple Silicon: hardwareConcurrency already = physical cores (no hyperthreading)
-  // x86 CPUs: Most use hyperthreading/SMT (logical = 2x physical)
+  // Apple Silicon: hardwareConcurrency = total cores (performance + efficiency cores, no hyperthreading)
+  // x86 CPUs: Many use hyperthreading/SMT (logical = 2x physical), but not all
   function estimatePhysicalCores(logicalCores: number): number {
-    // Apple Silicon Macs: hardwareConcurrency is already physical cores
+    // Apple Silicon Macs: hardwareConcurrency reports total cores (P-cores + E-cores)
+    // M1: 8 cores, M1 Pro: 10 cores, M1 Max: 10 cores
+    // M2: 8 cores, M2 Pro: 12 cores, M2 Max: 12 cores  
+    // M3: 8 cores, M3 Pro: 12 cores, M3 Max: 16 cores (12P + 4E)
+    // These are physical cores, not logical, so return as-is
     if (isAppleSilicon()) {
       return logicalCores;
     }
     
-    // For other systems, estimate physical cores
+    // For very low core counts, assume no hyperthreading
     if (logicalCores <= 2) {
-      return logicalCores; // Likely no hyperthreading on very low core counts
-    }
-    
-    // Check for odd numbers which might indicate no hyperthreading
-    if (logicalCores % 2 === 1) {
-      // Odd number might be actual physical cores (e.g., 3, 5, 7)
       return logicalCores;
     }
     
-    // Even numbers: likely hyperthreading, so divide by 2
-    return Math.floor(logicalCores / 2);
+    // Odd numbers are almost always physical cores (hyperthreading doubles cores)
+    if (logicalCores % 2 === 1) {
+      return logicalCores;
+    }
+    
+    // For even numbers, be conservative
+    // Many modern CPUs (especially mobile/embedded) don't use hyperthreading
+    // Only assume hyperthreading for very common desktop CPU patterns
+    
+    // Common hyperthreading patterns in desktop CPUs:
+    // - 4 logical cores: Often 2 physical (Intel Core i3, some i5) OR 4 physical (many modern CPUs)
+    // - 8 logical cores: Often 4 physical (Intel Core i7) OR 8 physical (AMD Ryzen, newer CPUs)
+    // - 12 logical cores: Often 6 physical (Intel Core i7/i9) OR 12 physical (AMD Ryzen)
+    // - 16 logical cores: Often 8 physical (Intel Core i9) OR 16 physical (AMD Ryzen)
+    
+    // Conservative approach: Only assume HT for high core counts that are clearly HT patterns
+    // Most consumer CPUs with HT have 8, 12, 16, 20, 24+ logical cores
+    // But many modern CPUs (especially AMD Ryzen, Apple Silicon, mobile) don't use HT
+    
+    // Be very conservative: only divide by 2 for very high counts (>= 16) that are clearly HT
+    // For lower counts, show logical cores to avoid underestimating
+    if (logicalCores >= 16 && logicalCores % 4 === 0) {
+      // High-end desktop CPUs with HT: 16, 20, 24, 28, 32 logical cores
+      // These are likely hyperthreaded (e.g., 16 logical = 8 physical)
+      return Math.floor(logicalCores / 2);
+    }
+    
+    // For most other cases (4, 6, 8, 10, 12, 14 cores), be conservative
+    // Many modern CPUs have these as physical cores without hyperthreading
+    // It's better to show the actual logical cores than to underestimate
+    return logicalCores;
   }
 
   const logicalCores = navigator.hardwareConcurrency || CONFIG.fallbackCores;
