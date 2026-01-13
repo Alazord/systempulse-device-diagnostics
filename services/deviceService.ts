@@ -304,9 +304,102 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
     runCPUStatsBenchmark()
   ]);
   
-  const rawMemory = (navigator as any).deviceMemory || null;
+  // Detect if this is iOS/iPhone
+  function isIOS(): boolean {
+    const platform = navigator.platform?.toLowerCase() || '';
+    const userAgent = navigator.userAgent?.toLowerCase() || '';
+    return platform.includes('iphone') || 
+           platform.includes('ipad') || 
+           platform.includes('ipod') ||
+           userAgent.includes('iphone') ||
+           userAgent.includes('ipad') ||
+           userAgent.includes('ipod') ||
+           (platform === 'macintel' && navigator.maxTouchPoints > 1); // iPadOS 13+ reports as Mac
+  }
+
+  // Attempt to detect iPhone model and RAM from user agent (fallback for iOS)
+  // Note: This is not 100% reliable as user agents can be spoofed, but provides best-effort detection
+  function detectiPhoneRAM(): number | null {
+    const userAgent = navigator.userAgent || '';
+    const ua = userAgent.toLowerCase();
+    
+    // iPhone model detection based on user agent patterns
+    // Format: iPhone OS version includes model identifiers in some cases
+    // We look for iPhone model numbers and known RAM specs
+    
+    // iPhone 15 Pro Max, 15 Pro - 8GB
+    if (ua.includes('iphone16,1') || ua.includes('iphone16,2')) return 8;
+    
+    // iPhone 15 Plus, 15 - 6GB
+    if (ua.includes('iphone15,4') || ua.includes('iphone15,5')) return 6;
+    
+    // iPhone 14 Pro Max, 14 Pro - 6GB
+    if (ua.includes('iphone15,2') || ua.includes('iphone15,3')) return 6;
+    
+    // iPhone 14 Plus, 14 - 6GB
+    if (ua.includes('iphone14,7') || ua.includes('iphone14,8')) return 6;
+    
+    // iPhone 13 Pro Max, 13 Pro - 6GB
+    if (ua.includes('iphone14,2') || ua.includes('iphone14,3')) return 6;
+    
+    // iPhone 13, 13 mini - 4GB
+    if (ua.includes('iphone14,4') || ua.includes('iphone14,5')) return 4;
+    
+    // iPhone 12 Pro Max, 12 Pro - 6GB
+    if (ua.includes('iphone13,3') || ua.includes('iphone13,4')) return 6;
+    
+    // iPhone 12, 12 mini - 4GB
+    if (ua.includes('iphone13,1') || ua.includes('iphone13,2')) return 4;
+    
+    // iPhone 11 Pro Max, 11 Pro - 4GB
+    if (ua.includes('iphone12,3') || ua.includes('iphone12,5')) return 4;
+    
+    // iPhone 11 - 4GB
+    if (ua.includes('iphone12,1')) return 4;
+    
+    // iPhone XS Max, XS - 4GB
+    if (ua.includes('iphone11,4') || ua.includes('iphone11,6')) return 4;
+    
+    // iPhone XR - 3GB
+    if (ua.includes('iphone11,8')) return 3;
+    
+    // iPhone X - 3GB
+    if (ua.includes('iphone10,3') || ua.includes('iphone10,6')) return 3;
+    
+    // iPhone 8 Plus - 3GB
+    if (ua.includes('iphone10,2')) return 3;
+    
+    // iPhone 8 - 2GB
+    if (ua.includes('iphone10,1') || ua.includes('iphone10,4')) return 2;
+    
+    // iPhone 7 Plus - 3GB
+    if (ua.includes('iphone9,2') || ua.includes('iphone9,4')) return 3;
+    
+    // iPhone 7 - 2GB
+    if (ua.includes('iphone9,1') || ua.includes('iphone9,3')) return 2;
+    
+    // Older iPhones - 2GB or less (conservative estimate)
+    // If we detect iPhone but can't identify model, return null (unknown)
+    if (ua.includes('iphone')) return null;
+    
+    return null;
+  }
+
+  let rawMemory = (navigator as any).deviceMemory || null;
   // Browser standard: memory is capped at 8GB to prevent fingerprinting
-  const isMemoryCapped = rawMemory === 8;
+  let isMemoryCapped = rawMemory === 8;
+  
+  // For iOS devices, try to detect RAM from user agent as fallback
+  // Safari doesn't expose deviceMemory API, so we use model detection
+  const isIOSDevice = isIOS();
+  if (isIOSDevice && rawMemory === null) {
+    const detectedRAM = detectiPhoneRAM();
+    if (detectedRAM !== null) {
+      rawMemory = detectedRAM;
+      // Mark as detected (not capped, since we detected it from model)
+      isMemoryCapped = false;
+    }
+  }
 
   // Detect if this is Windows
   function isWindows(): boolean {
@@ -474,11 +567,16 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
     scoreDetails.lowCPUCores = true;
   }
 
-  const memory = capabilities.deviceMemory || 2;
-  if (memory <= CONFIG.lowMemoryThreshold) {
-    score++;
-    scoreDetails.lowMemory = true;
+  // Memory check: Use deviceMemory if available (including iOS fallback detection)
+  // iOS Safari doesn't expose deviceMemory API, but we try to detect from user agent
+  if (capabilities.deviceMemory !== null) {
+    const memory = capabilities.deviceMemory;
+    if (memory <= CONFIG.lowMemoryThreshold) {
+      score++;
+      scoreDetails.lowMemory = true;
+    }
   }
+  // If deviceMemory is still null (unknown model or non-iOS), we don't penalize
 
   if (hasWeakGPU) {
     score++;

@@ -121,9 +121,22 @@ const App: React.FC = () => {
     : 0;
 
   // Format RAM string
+  // Detect iOS (Safari doesn't expose deviceMemory API)
+  const isIOS = () => {
+    const platform = result.capabilities.platform?.toLowerCase() || '';
+    const userAgent = result.capabilities.userAgent?.toLowerCase() || '';
+    return platform.includes('iphone') || 
+           platform.includes('ipad') || 
+           platform.includes('ipod') ||
+           userAgent.includes('iphone') ||
+           userAgent.includes('ipad') ||
+           userAgent.includes('ipod') ||
+           (platform === 'macintel' && result.capabilities.maxTouchPoints > 1);
+  };
+
   const ramDisplay = result.capabilities.deviceMemory 
     ? (result.capabilities.isMemoryCapped ? `8+ GB (Capped)` : `${result.capabilities.deviceMemory} GB`)
-    : 'N/A';
+    : (isIOS() ? 'Not Available (iOS)' : 'N/A');
 
   // Helper function to determine status for metrics
   const getStatus = (type: string, value: any): StatusLevel => {
