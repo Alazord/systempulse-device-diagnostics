@@ -10,6 +10,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [countdown, setCountdown] = useState(10);
+  const [showAIAnalysis, setShowAIAnalysis] = useState(false);
 
   const refreshDiagnostics = useCallback(async () => {
     setLoading(true);
@@ -299,7 +300,34 @@ const App: React.FC = () => {
         />
       </div>
 
-      <AnalysisPanel data={result} />
+      <div className="mt-8">
+        <button
+          onClick={() => setShowAIAnalysis(!showAIAnalysis)}
+          className="w-full glass-card p-6 rounded-3xl border-l-4 border-indigo-500 hover:bg-indigo-500/5 transition-all duration-300 flex items-center justify-between group"
+        >
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center group-hover:bg-indigo-500/30 transition-colors">
+              <i className="fas fa-sparkles text-indigo-400"></i>
+            </span>
+            <div className="text-left">
+              <h3 className="text-lg font-black text-white uppercase tracking-tighter">AI System Verdict</h3>
+              <p className="text-sm text-slate-400 font-medium">Get expert hardware analysis powered by AI</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-500 font-medium hidden md:inline">
+              {showAIAnalysis ? 'Hide' : 'Show'} Analysis
+            </span>
+            <i className={`fas fa-chevron-${showAIAnalysis ? 'up' : 'down'} text-indigo-400 transition-transform duration-300`}></i>
+          </div>
+        </button>
+        
+        {showAIAnalysis && (
+          <div className="mt-4">
+            <AnalysisPanel data={result} />
+          </div>
+        )}
+      </div>
 
       <footer className="text-center text-slate-600 text-[10px] space-y-2 pt-12 uppercase tracking-widest font-bold">
         <p>Engine Build 2.1.0 • Privacy Compliant Diagnostics</p>
