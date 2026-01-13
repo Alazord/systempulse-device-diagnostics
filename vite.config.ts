@@ -6,8 +6,6 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       base: mode === 'production' ? '/systempulse-device-diagnostics/' : '/',
-        },
-      },
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -19,8 +17,8 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: {
+          '@': path.resolve(__dirname, '.'),
         }
       }
     };
 });
-}
