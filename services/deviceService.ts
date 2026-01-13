@@ -216,19 +216,49 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
   // Browser standard: memory is capped at 8GB to prevent fingerprinting
   const isMemoryCapped = rawMemory === 8;
 
+  // Detect if this is an Apple Silicon Mac (M1, M2, M3, etc.)
+  // Apple Silicon doesn't use hyperthreading, so hardwareConcurrency = physical cores
+  function isAppleSilicon(): boolean {
+    const platform = navigator.platform?.toLowerCase() || '';
+    const userAgent = navigator.userAgent?.toLowerCase() || '';
+    const vendor = navigator.vendor?.toLowerCase() || '';
+    
+    // Check for Mac platform
+    const isMac = platform.includes('mac') || userAgent.includes('mac os');
+    
+    // Check for Apple vendor
+    const isApple = vendor.includes('apple') || userAgent.includes('apple');
+    
+    // Check for ARM architecture (Apple Silicon uses ARM)
+    const isARM = userAgent.includes('arm') || userAgent.includes('aarch64');
+    
+    // Apple Silicon Macs: Mac platform + Apple vendor + typically ARM
+    // Note: Some Intel Macs might match Mac + Apple, but they would have x86_64 in userAgent
+    const isIntelMac = userAgent.includes('intel') || userAgent.includes('x86_64');
+    
+    return isMac && isApple && !isIntelMac;
+  }
+
   // Estimate physical CPU cores from logical cores
-  // Most modern CPUs use hyperthreading/SMT (logical = 2x physical)
-  // For older CPUs or if unsure, assume logical = physical
+  // Apple Silicon: hardwareConcurrency already = physical cores (no hyperthreading)
+  // x86 CPUs: Most use hyperthreading/SMT (logical = 2x physical)
   function estimatePhysicalCores(logicalCores: number): number {
+    // Apple Silicon Macs: hardwareConcurrency is already physical cores
+    if (isAppleSilicon()) {
+      return logicalCores;
+    }
+    
+    // For other systems, estimate physical cores
     if (logicalCores <= 2) {
       return logicalCores; // Likely no hyperthreading on very low core counts
     }
-    // Most modern CPUs: divide by 2 (hyperthreading)
-    // But check for odd numbers which might indicate no hyperthreading
+    
+    // Check for odd numbers which might indicate no hyperthreading
     if (logicalCores % 2 === 1) {
       // Odd number might be actual physical cores (e.g., 3, 5, 7)
       return logicalCores;
     }
+    
     // Even numbers: likely hyperthreading, so divide by 2
     return Math.floor(logicalCores / 2);
   }
