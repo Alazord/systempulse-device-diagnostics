@@ -19,12 +19,7 @@ const CONFIG = {
   minVertexUniformVectors: 1024,
   slowDeviceThreshold: 8,
   fallbackCores: 2,
-  // Cache benchmark results for 30 seconds to prevent toggling
-  benchmarkCacheDuration: 30000,
 };
-
-// Cache for benchmark results to prevent toggling
-let benchmarkCache: { result: BenchmarkResult; timestamp: number } | null = null;
 
 const WEAK_GPU_PATTERNS = ['intel', 'mali', 'adreno 3', 'adreno 4', 'adreno 5', 'powervr'];
 const SOFTWARE_RENDERER_PATTERNS = [
@@ -233,23 +228,13 @@ function checkIsWeakGPU(gpu: GPUInfo | null): boolean {
 }
 
 export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
-  // Use cached benchmark result if available and recent (within cache duration)
-  let slowDeviceResult: BenchmarkResult;
-  const now = Date.now();
-  if (benchmarkCache && (now - benchmarkCache.timestamp) < CONFIG.benchmarkCacheDuration) {
-    slowDeviceResult = benchmarkCache.result;
-  } else {
-    // Run new benchmark and cache it
-    slowDeviceResult = await runCPUStatsBenchmark();
-    benchmarkCache = { result: slowDeviceResult, timestamp: now };
-  }
-
-  const [gpu, conn, battery, storage, refreshRate] = await Promise.all([
+  const [gpu, conn, battery, storage, refreshRate, slowDeviceResult] = await Promise.all([
     detectGPU(),
     getConnectionInfo(),
     getBatteryInfo(),
     getStorageInfo(),
     estimateRefreshRate(),
+    runCPUStatsBenchmark()
   ]);
   
   const rawMemory = (navigator as any).deviceMemory || null;
