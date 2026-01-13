@@ -10,6 +10,7 @@ interface AnalysisPanelProps {
 export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ data }) => {
   const [analysis, setAnalysis] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [hasError, setHasError] = useState<boolean>(false);
 
   const fetchAIAnalysis = async () => {
     setLoading(true);
@@ -42,9 +43,22 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ data }) => {
       });
       
       setAnalysis(response.text || 'Unable to generate analysis.');
-    } catch (err) {
+      setHasError(false);
+    } catch (err: any) {
       console.error('AI Analysis error:', err);
-      setAnalysis('Connect to the internet to allow the Gemini Engine to analyze these hardware specs.');
+      setHasError(true);
+      
+      // Check for quota/rate limit errors
+      if (err?.status === 429 || err?.error?.code === 429 || err?.message?.includes('429')) {
+        const retryDelay = err?.error?.details?.find((d: any) => d['@type']?.includes('RetryInfo'))?.retryDelay || '5';
+        setAnalysis(`⚠️ API quota exceeded. The free tier allows 20 requests per day. Please try again later (retry in ${retryDelay}s). For more information, visit: https://ai.google.dev/gemini-api/docs/rate-limits`);
+      } else if (err?.error?.message?.includes('quota')) {
+        setAnalysis('⚠️ API quota exceeded. The free tier allows 20 requests per day. Please try again tomorrow or upgrade your plan.');
+      } else if (!navigator.onLine) {
+        setAnalysis('⚠️ No internet connection. Please connect to the internet to allow the Gemini Engine to analyze these hardware specs.');
+      } else {
+        setAnalysis('⚠️ Unable to generate AI analysis at this time. Please try again later or check your internet connection.');
+      }
     } finally {
       setLoading(false);
     }
@@ -79,9 +93,20 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ data }) => {
             <div className="h-4 bg-slate-800 rounded w-5/6 animate-pulse"></div>
           </div>
         ) : (
-          <p className="text-slate-200 leading-relaxed text-base font-medium">
-            {analysis}
-          </p>
+          <div>
+            <p className="text-slate-200 leading-relaxed text-base font-medium">
+              {analysis}
+            </p>
+            {hasError && (
+              <button
+                onClick={fetchAIAnalysis}
+                className="mt-4 px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <i className="fas fa-redo text-xs"></i>
+                Retry Analysis
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
