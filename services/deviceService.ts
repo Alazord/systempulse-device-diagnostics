@@ -283,7 +283,10 @@ async function runCPUStatsBenchmark(): Promise<BenchmarkResult> {
 }
 
 function checkIsWeakGPU(gpu: GPUInfo | null): boolean {
+  // No GPU detected = weak (web apps with animations need GPU acceleration)
   if (!gpu) return true;
+  
+  // Check if detected GPU is weak
   const isLowTextureSize = gpu.maxTextureSize < CONFIG.minTextureSize;
   const isLowVertexUniforms = gpu.maxVertexUniformVectors < CONFIG.minVertexUniformVectors;
   const renderer = gpu.renderer?.toLowerCase() ?? '';
