@@ -328,7 +328,37 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
   }
 
   const logicalCores = navigator.hardwareConcurrency || CONFIG.fallbackCores;
-  const physicalCores = estimatePhysicalCores(logicalCores);
+  
+  // Special case: M3 Max has 16 cores - if we detect Mac with 16 cores, it's definitely Apple Silicon
+  // This is a fallback in case the user agent detection fails
+  const platform = navigator.platform?.toLowerCase() || '';
+  const userAgent = navigator.userAgent?.toLowerCase() || '';
+  const vendor = navigator.vendor?.toLowerCase() || '';
+  const isMac = platform.includes('mac') || userAgent.includes('mac os');
+  const isApple = vendor.includes('apple') || userAgent.includes('apple');
+  
+  // Calculate physical cores
+  let physicalCores: number;
+  
+  // Special handling for Macs: Check if it's Apple Silicon first
+  const isAppleSiliconMac = isMac && isApple;
+  
+  if (isAppleSiliconMac) {
+    // For Macs, check specific core counts that indicate Apple Silicon models
+    // M3 Max: 16 cores, M3 Pro: 12 cores, M2 Max: 12 cores, M2 Pro: 12 cores
+    // M1 Max: 10 cores, M1 Pro: 10 cores, M1/M2/M3 base: 8 cores
+    // These are all Apple Silicon and should not be divided
+    if (logicalCores === 16 || logicalCores === 12 || logicalCores === 10 || logicalCores === 8) {
+      // These are known Apple Silicon core counts - return as-is
+      physicalCores = logicalCores;
+    } else {
+      // Use detection function for other cases
+      physicalCores = estimatePhysicalCores(logicalCores);
+    }
+  } else {
+    // Non-Mac systems: use standard detection
+    physicalCores = estimatePhysicalCores(logicalCores);
+  }
 
   const capabilities: DeviceCapabilities = {
     cpuCores: physicalCores,
