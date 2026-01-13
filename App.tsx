@@ -8,6 +8,8 @@ import { AnalysisPanel } from './components/AnalysisPanel';
 const App: React.FC = () => {
   const [result, setResult] = useState<DiagnosticResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [countdown, setCountdown] = useState(10);
 
   const refreshDiagnostics = useCallback(async () => {
     setLoading(true);
@@ -19,6 +21,38 @@ const App: React.FC = () => {
   useEffect(() => {
     refreshDiagnostics();
   }, [refreshDiagnostics]);
+
+  // Auto-refresh every 10 seconds
+  useEffect(() => {
+    if (!autoRefreshEnabled || loading) return;
+
+    const interval = setInterval(() => {
+      refreshDiagnostics();
+      setCountdown(10);
+    }, 10000);
+
+    // Countdown timer
+    const countdownInterval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          return 10;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(countdownInterval);
+    };
+  }, [autoRefreshEnabled, loading, refreshDiagnostics]);
+
+  // Reset countdown when refresh happens manually
+  useEffect(() => {
+    if (!loading && autoRefreshEnabled) {
+      setCountdown(10);
+    }
+  }, [loading, autoRefreshEnabled]);
 
   if (loading && !result) {
     return (
@@ -73,14 +107,37 @@ const App: React.FC = () => {
           <p className="text-slate-400 text-sm md:text-base font-medium">Real-time device capability & performance analytics</p>
         </div>
 
-        <button 
-          onClick={refreshDiagnostics}
-          disabled={loading}
-          className="group relative px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl transition-all duration-300 flex items-center gap-3 border border-slate-700 disabled:opacity-50"
-        >
-          <i className={`fas fa-sync-alt ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`}></i>
-          <span className="font-bold">Refresh Health</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={refreshDiagnostics}
+            disabled={loading}
+            className="group relative px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl transition-all duration-300 flex items-center gap-3 border border-slate-700 disabled:opacity-50"
+          >
+            <i className={`fas fa-sync-alt ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`}></i>
+            <span className="font-bold">Refresh Health</span>
+            {autoRefreshEnabled && !loading && (
+              <span className="text-xs text-slate-400 font-normal ml-2">
+                ({countdown}s)
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => {
+              setAutoRefreshEnabled(!autoRefreshEnabled);
+              if (!autoRefreshEnabled) {
+                setCountdown(10);
+              }
+            }}
+            className={`px-4 py-3 rounded-xl transition-all duration-300 flex items-center gap-2 border ${
+              autoRefreshEnabled 
+                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border-slate-700'
+            }`}
+            title={autoRefreshEnabled ? 'Disable auto-refresh' : 'Enable auto-refresh'}
+          >
+            <i className={`fas ${autoRefreshEnabled ? 'fa-pause' : 'fa-play'} text-sm`}></i>
+          </button>
+        </div>
       </header>
 
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
