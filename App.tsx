@@ -137,7 +137,7 @@ const App: React.FC = () => {
         if (result.capabilities.isMemoryCapped) return 'good'; // Capped means 8GB+, which is good
         if (!value) return 'neutral';
         if (value >= 8) return 'good';
-        if (value >= 4) return 'warning';
+        if (value > 4) return 'warning'; // 4GB is bad, >4GB is warning
         return 'bad';
       
       case 'refreshRate':

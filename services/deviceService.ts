@@ -406,7 +406,7 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
   }
 
   const memory = capabilities.deviceMemory || 2;
-  if (memory < CONFIG.lowMemoryThreshold) {
+  if (memory <= CONFIG.lowMemoryThreshold) {
     score++;
     scoreDetails.lowMemory = true;
   }
@@ -429,20 +429,13 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
   scoreDetails.totalScore = score;
 
   let performanceLevel: PerformanceLevel;
-  
-  // Use hysteresis to prevent toggling: require score >= 2.3 to be LOW
-  // This creates a buffer zone (score 2.0-2.2) that defaults to MEDIUM for stability
-  // The benchmark cache (30 seconds) also helps prevent rapid toggling
-  const LOW_SCORE_THRESHOLD = 2.3;  // Raised from 2.0 to prevent oscillation
-  
-  if (score >= LOW_SCORE_THRESHOLD) {
+  if (score >= 2) {
     performanceLevel = PerformanceLevel.LOW;
   } else if (
     capabilities.cpuCores >= CONFIG.highCPUCoresThreshold &&
     (capabilities.deviceMemory !== null && capabilities.deviceMemory >= CONFIG.highMemoryThreshold) &&
     !hasWeakGPU &&
-    (refreshRate || 0) >= 90 &&
-    score < 1.5  // Only HIGH if score is low
+    (refreshRate || 0) >= 90
   ) {
     performanceLevel = PerformanceLevel.HIGH;
   } else {
