@@ -241,6 +241,13 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
   // Browser standard: memory is capped at 8GB to prevent fingerprinting
   const isMemoryCapped = rawMemory === 8;
 
+  // Detect if this is Windows
+  function isWindows(): boolean {
+    const platform = navigator.platform?.toLowerCase() || '';
+    const userAgent = navigator.userAgent?.toLowerCase() || '';
+    return platform.includes('win') || userAgent.includes('windows');
+  }
+
   // Detect if this is an Apple Silicon Mac (M1, M2, M3, etc.)
   // Apple Silicon doesn't use hyperthreading, so hardwareConcurrency = physical cores
   function isAppleSilicon(): boolean {
@@ -287,7 +294,8 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
 
   // Estimate physical CPU cores from logical cores
   // Apple Silicon: hardwareConcurrency = total cores (performance + efficiency cores, no hyperthreading)
-  // x86 CPUs: Many use hyperthreading/SMT (logical = 2x physical), but not all
+  // Windows x86: Commonly uses hyperthreading (logical = 2x physical)
+  // Other systems: Varies by CPU manufacturer
   function estimatePhysicalCores(logicalCores: number): number {
     // Apple Silicon Macs: hardwareConcurrency reports total cores (P-cores + E-cores)
     // M1: 8 cores, M1 Pro: 10 cores, M1 Max: 10 cores
@@ -308,31 +316,25 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
       return logicalCores;
     }
     
-    // For even numbers, be conservative
-    // Many modern CPUs (especially mobile/embedded) don't use hyperthreading
-    // Only assume hyperthreading for very common desktop CPU patterns
+    // Windows systems commonly use Intel CPUs with hyperthreading
+    // Common patterns: 4 logical = 2 physical, 8 logical = 4 physical, 12 logical = 6 physical, 16 logical = 8 physical
+    if (isWindows()) {
+      // For Windows, assume hyperthreading for common even-numbered patterns
+      // This handles the majority of Intel Core i3/i5/i7/i9 CPUs
+      return Math.floor(logicalCores / 2);
+    }
     
-    // Common hyperthreading patterns in desktop CPUs:
-    // - 4 logical cores: Often 2 physical (Intel Core i3, some i5) OR 4 physical (many modern CPUs)
-    // - 8 logical cores: Often 4 physical (Intel Core i7) OR 8 physical (AMD Ryzen, newer CPUs)
-    // - 12 logical cores: Often 6 physical (Intel Core i7/i9) OR 12 physical (AMD Ryzen)
-    // - 16 logical cores: Often 8 physical (Intel Core i9) OR 16 physical (AMD Ryzen)
-    
-    // Conservative approach: Only assume HT for high core counts that are clearly HT patterns
-    // Most consumer CPUs with HT have 8, 12, 16, 20, 24+ logical cores
-    // But many modern CPUs (especially AMD Ryzen, Apple Silicon, mobile) don't use HT
-    
-    // Be very conservative: only divide by 2 for very high counts (>= 16) that are clearly HT
-    // For lower counts, show logical cores to avoid underestimating
+    // For non-Windows, non-Apple systems (Linux, Android, etc.), be more conservative
+    // Many modern CPUs (especially AMD Ryzen, mobile) don't use hyperthreading
+    // Only assume HT for high core counts that are clearly HT patterns
     if (logicalCores >= 16 && logicalCores % 4 === 0) {
       // High-end desktop CPUs with HT: 16, 20, 24, 28, 32 logical cores
       // These are likely hyperthreaded (e.g., 16 logical = 8 physical)
       return Math.floor(logicalCores / 2);
     }
     
-    // For most other cases (4, 6, 8, 10, 12, 14 cores), be conservative
+    // For other cases, show logical cores to avoid underestimating
     // Many modern CPUs have these as physical cores without hyperthreading
-    // It's better to show the actual logical cores than to underestimate
     return logicalCores;
   }
 
@@ -421,8 +423,9 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
     scoreDetails.slowDevice = true;
   }
 
+  // Battery throttling check (informational only - not used for LOW score)
+  // Battery level indicates temporary throttling state, not device capability
   if (battery.supported && (battery.level || 0) < 20 && !battery.charging) {
-    score++;
     scoreDetails.throttledState = true;
   }
   
