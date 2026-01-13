@@ -5,6 +5,7 @@ import { getDiagnosticData } from './services/deviceService';
 import { InfoGrid } from './components/InfoGrid';
 import { AnalysisPanel } from './components/AnalysisPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import type { StatusLevel } from './components/InfoGrid';
 
 const App: React.FC = () => {
   const [result, setResult] = useState<DiagnosticResult | null>(null);
@@ -124,6 +125,70 @@ const App: React.FC = () => {
     ? (result.capabilities.isMemoryCapped ? `8+ GB (Capped)` : `${result.capabilities.deviceMemory} GB`)
     : 'N/A';
 
+  // Helper function to determine status for metrics
+  const getStatus = (type: string, value: any): StatusLevel => {
+    switch (type) {
+      case 'cores':
+        if (value >= 8) return 'good';
+        if (value >= 6) return 'warning';
+        return 'bad';
+      
+      case 'ram':
+        if (result.capabilities.isMemoryCapped) return 'good'; // Capped means 8GB+, which is good
+        if (!value) return 'neutral';
+        if (value >= 8) return 'good';
+        if (value >= 4) return 'warning';
+        return 'bad';
+      
+      case 'refreshRate':
+        if (!value) return 'neutral';
+        if (value >= 90) return 'good';
+        if (value >= 60) return 'warning';
+        return 'bad';
+      
+      case 'gpu':
+        if (!result.capabilities.gpu) return 'bad';
+        if (result.hasWeakGPU) return 'warning';
+        return 'good';
+      
+      case 'gpuHealth':
+        if (!result.capabilities.gpu) return 'bad';
+        if (result.hasWeakGPU) return 'warning';
+        return 'good';
+      
+      case 'connection':
+        if (!result.capabilities.onLine) return 'bad';
+        const effectiveType = result.capabilities.connectionEffectiveType?.toLowerCase() || '';
+        if (effectiveType === '4g' || effectiveType.includes('4g')) return 'good';
+        if (effectiveType === '3g' || effectiveType.includes('3g')) return 'warning';
+        if (effectiveType === '2g' || effectiveType.includes('2g')) return 'bad';
+        return 'neutral';
+      
+      case 'downlink':
+        if (!value) return 'neutral';
+        if (value >= 10) return 'good';
+        if (value >= 5) return 'warning';
+        return 'bad';
+      
+      case 'battery':
+        if (!result.capabilities.battery.supported) return 'neutral';
+        if (result.capabilities.battery.charging) return 'good';
+        const level = result.capabilities.battery.level || 0;
+        if (level >= 50) return 'good';
+        if (level >= 20) return 'warning';
+        return 'bad';
+      
+      case 'computeDelay':
+        if (!value) return 'neutral';
+        if (value <= 8) return 'good';
+        if (value <= 15) return 'warning';
+        return 'bad';
+      
+      default:
+        return 'neutral';
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 md:py-12 space-y-12 pb-24">
       <header className="flex flex-col md:flex-row items-center md:justify-between gap-6">
@@ -242,9 +307,12 @@ const App: React.FC = () => {
           <div className="pt-6 border-t border-slate-800">
              <div className="flex items-center justify-between mb-4">
                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Compute Delay</h3>
-               <span className={`text-xs font-bold ${result.slowDevice.isSlow ? 'text-rose-400' : 'text-emerald-400'}`}>
-                {result.slowDevice.isSlow ? 'High' : 'Low'}
-               </span>
+               <div className="flex items-center gap-2">
+                 <div className={`w-2 h-2 rounded-full ${getStatus('computeDelay', result.slowDevice.duration) === 'good' ? 'bg-emerald-500' : getStatus('computeDelay', result.slowDevice.duration) === 'warning' ? 'bg-yellow-500' : 'bg-rose-500'}`}></div>
+                 <span className={`text-xs font-bold ${result.slowDevice.isSlow ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {result.slowDevice.isSlow ? 'High' : 'Low'}
+                 </span>
+               </div>
              </div>
              <div className="flex items-center gap-4">
                <span className="text-3xl font-black text-white">{result.slowDevice.duration?.toFixed(1)}<span className="text-sm font-normal text-slate-500 ml-1">ms</span></span>
@@ -272,10 +340,10 @@ const App: React.FC = () => {
           <InfoGrid 
             title="" 
             items={[
-              { label: 'Cores', value: result.capabilities.cpuCores, icon: 'fa-microchip', color: 'blue' },
-              { label: 'RAM Buffer', value: ramDisplay, icon: 'fa-memory', color: 'indigo' },
-              { label: 'Refresh Rate', value: `${result.capabilities.refreshRate} Hz`, icon: 'fa-bolt', color: 'yellow' },
-              { label: 'Platform', value: result.capabilities.platform, icon: 'fa-laptop', color: 'purple' },
+              { label: 'Cores', value: result.capabilities.cpuCores, icon: 'fa-microchip', color: 'blue', status: getStatus('cores', result.capabilities.cpuCores) },
+              { label: 'RAM Buffer', value: ramDisplay, icon: 'fa-memory', color: 'indigo', status: getStatus('ram', result.capabilities.deviceMemory) },
+              { label: 'Refresh Rate', value: `${result.capabilities.refreshRate} Hz`, icon: 'fa-bolt', color: 'yellow', status: getStatus('refreshRate', result.capabilities.refreshRate) },
+              { label: 'Platform', value: result.capabilities.platform, icon: 'fa-laptop', color: 'purple', status: 'neutral' },
             ]} 
           />
         </div>
@@ -283,20 +351,20 @@ const App: React.FC = () => {
         <InfoGrid 
           title="Graphics Engine" 
           items={[
-            { label: 'Renderer', value: result.capabilities.gpu?.renderer || 'No GPU Detected', icon: 'fa-paint-brush', color: result.capabilities.gpu ? 'amber' : 'rose' },
-            { label: 'Vendor', value: result.capabilities.gpu?.vendor || 'N/A', icon: 'fa-industry', color: result.capabilities.gpu ? 'orange' : 'rose' },
-            { label: 'Texture Limit', value: result.capabilities.gpu ? `${result.capabilities.gpu.maxTextureSize}px` : 'N/A', icon: 'fa-vector-square', color: result.capabilities.gpu ? 'cyan' : 'rose' },
-            { label: 'GPU Health', value: !result.capabilities.gpu ? 'No GPU' : (result.hasWeakGPU ? 'Integrated' : 'Discrete Performance'), icon: 'fa-gauge-high', color: !result.capabilities.gpu ? 'rose' : (result.hasWeakGPU ? 'rose' : 'emerald') },
+            { label: 'Renderer', value: result.capabilities.gpu?.renderer || 'No GPU Detected', icon: 'fa-paint-brush', color: result.capabilities.gpu ? 'amber' : 'rose', status: getStatus('gpu', result.capabilities.gpu) },
+            { label: 'Vendor', value: result.capabilities.gpu?.vendor || 'N/A', icon: 'fa-industry', color: result.capabilities.gpu ? 'orange' : 'rose', status: getStatus('gpu', result.capabilities.gpu) },
+            { label: 'Texture Limit', value: result.capabilities.gpu ? `${result.capabilities.gpu.maxTextureSize}px` : 'N/A', icon: 'fa-vector-square', color: result.capabilities.gpu ? 'cyan' : 'rose', status: getStatus('gpu', result.capabilities.gpu) },
+            { label: 'GPU Health', value: !result.capabilities.gpu ? 'No GPU' : (result.hasWeakGPU ? 'Integrated' : 'Discrete Performance'), icon: 'fa-gauge-high', color: !result.capabilities.gpu ? 'rose' : (result.hasWeakGPU ? 'rose' : 'emerald'), status: getStatus('gpuHealth', result.capabilities.gpu) },
           ]} 
         />
 
         <InfoGrid 
           title="Network & Power" 
           items={[
-            { label: 'Connection', value: result.capabilities.connectionEffectiveType?.toUpperCase() || 'Offline', icon: 'fa-wifi', color: result.capabilities.onLine ? 'emerald' : 'rose' },
-            { label: 'Downlink', value: result.capabilities.connectionDownlink ? `${result.capabilities.connectionDownlink} Mbps` : 'N/A', icon: 'fa-download', color: 'sky' },
-            { label: 'Battery Level', value: result.capabilities.battery.supported ? `${Math.round(result.capabilities.battery.level || 0)}%` : 'Blocked', icon: 'fa-battery-full', color: 'lime' },
-            { label: 'Charging', value: result.capabilities.battery.charging ? 'Active' : 'Battery', icon: 'fa-plug', color: 'amber' },
+            { label: 'Connection', value: result.capabilities.connectionEffectiveType?.toUpperCase() || 'Offline', icon: 'fa-wifi', color: result.capabilities.onLine ? 'emerald' : 'rose', status: getStatus('connection', result.capabilities.connectionEffectiveType) },
+            { label: 'Downlink', value: result.capabilities.connectionDownlink ? `${result.capabilities.connectionDownlink} Mbps` : 'N/A', icon: 'fa-download', color: 'sky', status: getStatus('downlink', result.capabilities.connectionDownlink) },
+            { label: 'Battery Level', value: result.capabilities.battery.supported ? `${Math.round(result.capabilities.battery.level || 0)}%` : 'Blocked', icon: 'fa-battery-full', color: 'lime', status: getStatus('battery', result.capabilities.battery.level) },
+            { label: 'Charging', value: result.capabilities.battery.charging ? 'Active' : 'Battery', icon: 'fa-plug', color: 'amber', status: result.capabilities.battery.charging ? 'good' : (result.capabilities.battery.level && result.capabilities.battery.level < 20 ? 'bad' : 'neutral') },
           ]} 
         />
       </div>
