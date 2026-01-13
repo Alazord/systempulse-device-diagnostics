@@ -44,7 +44,16 @@ Each issue adds 1 point to the score. Maximum score is 5.
 - 🔴 **Bad**: ≤ 4 GB
 - ⚪ **Neutral**: Not available
 
-**Note**: Browsers cap memory reporting at 8GB for privacy/anti-fingerprinting
+**Detection Methods:**
+1. **Primary**: `navigator.deviceMemory` API (when available)
+2. **iOS Fallback**: User-agent parsing to detect iPhone models (iPhone 7 through iPhone 15 Pro Max)
+   - Safari on iOS doesn't expose `deviceMemory` API for privacy reasons
+   - Falls back to model detection from user agent when API unavailable
+   - If detection fails, shows "Not Available (iOS)" and doesn't penalize score
+
+**Note**: 
+- Browsers cap memory reporting at 8GB for privacy/anti-fingerprinting
+- iOS devices: If RAM cannot be detected, score is not penalized (unknown ≠ low)
 
 ---
 
@@ -86,22 +95,30 @@ Each issue adds 1 point to the score. Maximum score is 5.
 ---
 
 ### 4. Compute Delay (CPU Benchmark)
-**Metric**: Median duration of CPU benchmark in milliseconds
+**Metric**: Stable duration of CPU benchmark in milliseconds
 
 **Benchmark Details:**
-- **Rounds**: 7 runs
-- **Method**: Median calculation (or trimmed mean if variance > 15%)
-- **Variance Adjustment**: If coefficient of variation > 20%, threshold increased by 50%
+- **Rounds**: 11 runs (increased from 7 for better statistical accuracy)
+- **Minimum Valid Results**: 5 required
+- **Method**: 
+  - Low variance (< 10%): Uses trimmed mean (removes top/bottom 25%)
+  - Moderate variance (10-25%): Uses median
+  - High variance (> 25%): Uses median
+- **Outlier Detection**: IQR method (removes values outside Q1 - 1.5×IQR or Q3 + 1.5×IQR)
+- **Variance Adjustments**:
+  - Coefficient of variation > 15%: Threshold increased by 50% (18ms → 27ms)
+  - Coefficient of variation > 25%: Threshold increased by 75% (18ms → 31.5ms)
 
 **Scoring Thresholds:**
 - **Slow Device** (adds 1 point): Duration > threshold
-- **Standard Threshold**: 8ms
-- **Adjusted Threshold** (high variance): 12ms (8ms × 1.5)
+- **Standard Threshold**: 18ms
+- **Adjusted Threshold** (high variance >15%): 27ms (18ms × 1.5)
+- **Adjusted Threshold** (very high variance >25%): 31.5ms (18ms × 1.75)
 
 **Status Indicators (UI):**
-- 🟢 **Good**: ≤ 8ms
-- 🟡 **Warning**: 9-15ms
-- 🔴 **Bad**: > 15ms
+- 🟢 **Good**: ≤ 12ms
+- 🟡 **Warning**: 13-18ms
+- 🔴 **Bad**: > 18ms
 
 ---
 
@@ -178,8 +195,8 @@ To achieve **HIGH** performance level:
 | CPU Cores | < 6 cores | ≥ 8 cores | +1 if low |
 | RAM | ≤ 4 GB | ≥ 8 GB | +1 if low |
 | GPU | Weak/None | Discrete, good | +1 if weak |
-| Compute Delay | > 8ms (or 12ms if high variance) | ≤ 8ms | +1 if slow |
-| Battery | < 20% (not charging) | N/A | +1 if throttled |
+| Compute Delay | > 18ms (or 27ms/31.5ms if high variance) | ≤ 18ms | +1 if slow |
+| Battery | < 20% (not charging) | N/A | Informational only |
 | Refresh Rate | N/A | ≥ 90 Hz | Required for HIGH |
 | Network | N/A | N/A | No impact |
 
@@ -187,11 +204,20 @@ To achieve **HIGH** performance level:
 
 ## Notes
 
-- **Score Range**: 0-5 (each issue adds 1 point)
+- **Score Range**: 0-4 (each issue adds 1 point)
 - **Performance Level**:
   - Score ≥ 2 → LOW
   - Score < 2 → MEDIUM (default)
   - Score < 1.5 + all HIGH criteria → HIGH
-- **Benchmark Stability**: Uses median or trimmed mean (removes outliers) for consistent results
-- **Variance Handling**: High variance (>20%) increases threshold by 50% to avoid false positives
+- **Benchmark Stability**: 
+  - 11 rounds for better statistical accuracy
+  - Uses IQR method for outlier detection
+  - Uses median or trimmed mean based on variance
+- **Variance Handling**: 
+  - Coefficient of variation > 15%: Threshold increased by 50% (18ms → 27ms)
+  - Coefficient of variation > 25%: Threshold increased by 75% (18ms → 31.5ms)
+  - Prevents false positives from background processes or thermal throttling
+- **iOS Support**: 
+  - RAM detection via user-agent parsing for iPhone models
+  - Unknown RAM on iOS doesn't penalize score (privacy limitation, not device capability)
 

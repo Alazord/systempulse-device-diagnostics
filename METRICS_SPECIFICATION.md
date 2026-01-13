@@ -28,14 +28,18 @@ This document defines which metrics should be used for device performance assess
 **Status**: ✅ **KEEP** - Critical metric
 
 **How it works**:
-- Detects device memory via `navigator.deviceMemory`
+- **Primary Method**: Detects device memory via `navigator.deviceMemory` API
+- **iOS Fallback**: User-agent parsing to detect iPhone models (iPhone 7 through iPhone 15 Pro Max)
+  - Safari on iOS doesn't expose `deviceMemory` API for privacy reasons
+  - Falls back to model detection from user agent when API unavailable
+  - If detection fails, shows "Not Available (iOS)" and doesn't penalize score
 - **Threshold**: ≤ 4 GB = +1 point
 - **Browser Limitation**: Memory reporting capped at 8GB (privacy)
-- **Display**: Shows "8+ GB (Capped)" when capped
+- **Display**: Shows "8+ GB (Capped)" when capped, "Not Available (iOS)" on iOS when undetectable
 
 **Why**: RAM is critical for app performance and multitasking. ≤ 4 GB causes constant app reloading and slow performance.
 
-**Current Implementation**: ✅ Working correctly
+**Current Implementation**: ✅ Working correctly (with iOS fallback detection)
 
 ---
 
@@ -43,15 +47,21 @@ This document defines which metrics should be used for device performance assess
 **Status**: ✅ **KEEP** - Most important metric
 
 **How it works**:
-- Runs 7 rounds of CPU benchmarks
-- Calculates median with variance detection
-- Uses trimmed mean if variance > 15%
-- Adjusts threshold by 50% if coefficient of variation > 20%
-- **Threshold**: > 8ms = +1 point
+- Runs 11 rounds of CPU benchmarks (increased from 7 for better statistical accuracy)
+- Requires minimum 5 valid results
+- **Outlier Detection**: IQR method (removes values outside Q1 - 1.5×IQR or Q3 + 1.5×IQR)
+- **Statistical Method**:
+  - Low variance (< 10%): Uses trimmed mean (removes top/bottom 25%)
+  - Moderate variance (10-25%): Uses median
+  - High variance (> 25%): Uses median
+- **Variance Adjustments**:
+  - Coefficient of variation > 15%: Threshold increased by 50% (18ms → 27ms)
+  - Coefficient of variation > 25%: Threshold increased by 75% (18ms → 31.5ms)
+- **Threshold**: > 18ms = +1 point
 
 **Why**: Measures actual CPU performance, not just specs. Accounts for thermal throttling and background processes. Most accurate real-world performance indicator.
 
-**Current Implementation**: ✅ Working correctly (with variance detection)
+**Current Implementation**: ✅ Working correctly (with advanced variance detection and outlier removal)
 
 ---
 
@@ -75,19 +85,20 @@ This document defines which metrics should be used for device performance assess
 ---
 
 ### 5. **Battery Level** ⭐
-**Status**: ❌ **REMOVE FROM LOW SCORE** - Not a device capability indicator
+**Status**: ✅ **REMOVED FROM LOW SCORE** - Not a device capability indicator
 
 **Current Behavior**:
-- Low battery (< 20%) + Not charging = +1 point
-- **Problem**: Battery level indicates temporary throttling state, not device capability
+- Low battery (< 20%) + Not charging = Informational only (throttledState flag)
+- **Not used in score calculation** ✅
+- **Problem Solved**: Battery level indicates temporary throttling state, not device capability
 - A high-end device with low battery ≠ low-end device
 
-**Recommendation**: 
-- **Remove from LOW score calculation**
-- Keep in display (informational only)
-- Can be used for throttling warnings, but not for device capability assessment
+**Implementation**: 
+- ✅ **Removed from LOW score calculation**
+- ✅ Kept in display (informational only)
+- ✅ Used for throttling warnings, but not for device capability assessment
 
-**Why Remove**: Battery level is temporary state, not inherent device capability. Causes false positives.
+**Why Removed**: Battery level is temporary state, not inherent device capability. Prevents false positives.
 
 ---
 
@@ -140,12 +151,12 @@ This document defines which metrics should be used for device performance assess
 - **Total**: 5 metrics can contribute
 - **Threshold**: Score ≥ 2 = LOW
 
-**Proposed Scoring System**:
+**Current Scoring System** (Implemented):
 - CPU Cores (< 6) = +1
 - RAM (≤ 4 GB) = +1
 - Weak GPU = +1
-- Slow Compute Delay (> 8ms) = +1
-- ~~Low Battery~~ = **REMOVED**
+- Slow Compute Delay (> 18ms) = +1
+- ~~Low Battery~~ = **REMOVED** ✅
 - **Total**: 4 metrics can contribute
 - **Threshold**: Score ≥ 2 = LOW (unchanged)
 
@@ -158,9 +169,9 @@ This document defines which metrics should be used for device performance assess
 ### For LOW Performance Detection (Score ≥ 2):
 1. ✅ **CPU Cores** (< 6 cores) - +1 point
 2. ✅ **RAM** (≤ 4 GB) - +1 point
-3. ✅ **Compute Delay** (> 8ms) - +1 point
+3. ✅ **Compute Delay** (> 18ms) - +1 point
 4. ✅ **GPU** (Weak GPU) - +1 point
-5. ❌ **Battery** - **REMOVE** (temporary state, not capability)
+5. ✅ **Battery** - **REMOVED** ✅ (temporary state, not capability)
 
 ### For HIGH Performance Detection:
 1. ✅ **CPU Cores** (≥ 8 cores)
@@ -175,9 +186,12 @@ This document defines which metrics should be used for device performance assess
 
 ---
 
-## Implementation Priority
+## Implementation Status
 
-1. **Remove battery from LOW score calculation** (High priority)
-2. Keep all other metrics as-is (they're working correctly)
-3. Battery can remain in display for informational purposes
+1. ✅ **Battery removed from LOW score calculation** (Completed)
+2. ✅ **Compute Delay threshold updated to 18ms** (Completed)
+3. ✅ **Benchmark rounds increased to 11** (Completed)
+4. ✅ **iOS RAM detection fallback implemented** (Completed)
+5. ✅ **Advanced variance detection and outlier removal** (Completed)
+6. ✅ Battery remains in display for informational purposes (Completed)
 
