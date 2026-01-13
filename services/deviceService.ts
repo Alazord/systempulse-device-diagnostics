@@ -19,7 +19,12 @@ const CONFIG = {
   minVertexUniformVectors: 1024,
   slowDeviceThreshold: 8,
   fallbackCores: 2,
+  // Cache benchmark results for 30 seconds to prevent toggling
+  benchmarkCacheDuration: 30000,
 };
+
+// Cache for benchmark results to prevent toggling
+let benchmarkCache: { result: BenchmarkResult; timestamp: number } | null = null;
 
 const WEAK_GPU_PATTERNS = ['intel', 'mali', 'adreno 3', 'adreno 4', 'adreno 5', 'powervr'];
 const SOFTWARE_RENDERER_PATTERNS = [
@@ -175,7 +180,7 @@ async function runCPUStatsBenchmark(): Promise<BenchmarkResult> {
           return;
         }
         
-        // Sort and take median
+        // Sort and take median (more stable than mean)
         results.sort((a, b) => a - b);
         const medianIndex = Math.floor(results.length / 2);
         const medianDuration = results.length % 2 === 0
@@ -188,14 +193,23 @@ async function runCPUStatsBenchmark(): Promise<BenchmarkResult> {
         const stdDev = Math.sqrt(variance);
         const coefficientOfVariation = stdDev / mean;
         
+        // Use trimmed mean (remove outliers) for more stable results
+        // Remove top and bottom 20% of results, then take mean of middle 60%
+        const trimCount = Math.floor(results.length * 0.2);
+        const trimmedResults = results.slice(trimCount, results.length - trimCount);
+        const trimmedMean = trimmedResults.reduce((a, b) => a + b, 0) / trimmedResults.length;
+        
+        // Use the more stable value: prefer trimmed mean if variance is high, otherwise use median
+        const stableDuration = coefficientOfVariation > 0.15 ? trimmedMean : medianDuration;
+        
         // If variance is high (>20%), use a more lenient threshold to avoid false positives
         // Otherwise use the standard threshold
         const adjustedThreshold = coefficientOfVariation > 0.2 
           ? CONFIG.slowDeviceThreshold * 1.5  // 50% more lenient if high variance
           : CONFIG.slowDeviceThreshold;
         
-        const isSlow = medianDuration > adjustedThreshold;
-        resolve({ isSlow, duration: medianDuration });
+        const isSlow = stableDuration > adjustedThreshold;
+        resolve({ isSlow, duration: stableDuration });
       } catch {
         resolve({ isSlow: false, duration: null });
       }
@@ -219,13 +233,23 @@ function checkIsWeakGPU(gpu: GPUInfo | null): boolean {
 }
 
 export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
-  const [gpu, conn, battery, storage, refreshRate, slowDeviceResult] = await Promise.all([
+  // Use cached benchmark result if available and recent (within cache duration)
+  let slowDeviceResult: BenchmarkResult;
+  const now = Date.now();
+  if (benchmarkCache && (now - benchmarkCache.timestamp) < CONFIG.benchmarkCacheDuration) {
+    slowDeviceResult = benchmarkCache.result;
+  } else {
+    // Run new benchmark and cache it
+    slowDeviceResult = await runCPUStatsBenchmark();
+    benchmarkCache = { result: slowDeviceResult, timestamp: now };
+  }
+
+  const [gpu, conn, battery, storage, refreshRate] = await Promise.all([
     detectGPU(),
     getConnectionInfo(),
     getBatteryInfo(),
     getStorageInfo(),
     estimateRefreshRate(),
-    runCPUStatsBenchmark()
   ]);
   
   const rawMemory = (navigator as any).deviceMemory || null;
@@ -420,13 +444,20 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
   scoreDetails.totalScore = score;
 
   let performanceLevel: PerformanceLevel;
-  if (score >= 2) {
+  
+  // Use hysteresis to prevent toggling: require score >= 2.3 to be LOW
+  // This creates a buffer zone (score 2.0-2.2) that defaults to MEDIUM for stability
+  // The benchmark cache (30 seconds) also helps prevent rapid toggling
+  const LOW_SCORE_THRESHOLD = 2.3;  // Raised from 2.0 to prevent oscillation
+  
+  if (score >= LOW_SCORE_THRESHOLD) {
     performanceLevel = PerformanceLevel.LOW;
   } else if (
     capabilities.cpuCores >= CONFIG.highCPUCoresThreshold &&
     (capabilities.deviceMemory !== null && capabilities.deviceMemory >= CONFIG.highMemoryThreshold) &&
     !hasWeakGPU &&
-    (refreshRate || 0) >= 90
+    (refreshRate || 0) >= 90 &&
+    score < 1.5  // Only HIGH if score is low
   ) {
     performanceLevel = PerformanceLevel.HIGH;
   } else {
