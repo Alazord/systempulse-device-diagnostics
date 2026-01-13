@@ -6,11 +6,6 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       base: mode === 'production' ? '/systempulse-device-diagnostics/' : '/',
-      build: {
-        rollupOptions: {
-          input: {
-            main: path.resolve(__dirname, 'index.html'),
-          },
         },
       },
       server: {
