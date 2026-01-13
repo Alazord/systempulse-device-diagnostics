@@ -5,12 +5,14 @@ import { DiagnosticResult } from '../types';
 
 interface AnalysisPanelProps {
   data: DiagnosticResult;
+  isVisible: boolean;
 }
 
-export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ data }) => {
+export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ data, isVisible }) => {
   const [analysis, setAnalysis] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [hasError, setHasError] = useState<boolean>(false);
+  const [lastTimestamp, setLastTimestamp] = useState<number | null>(null);
 
   const fetchAIAnalysis = async () => {
     setLoading(true);
@@ -65,9 +67,13 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ data }) => {
   };
 
   useEffect(() => {
-    fetchAIAnalysis();
+    // Only fetch when panel is visible and data has changed
+    if (isVisible && (lastTimestamp === null || lastTimestamp !== data.timestamp)) {
+      fetchAIAnalysis();
+      setLastTimestamp(data.timestamp);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.timestamp]);
+  }, [isVisible, data.timestamp]);
 
   return (
     <div className="glass-card p-8 rounded-3xl border-l-4 border-indigo-500 mt-8 relative overflow-hidden group shadow-2xl">

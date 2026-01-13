@@ -4,6 +4,7 @@ import { DiagnosticResult, PerformanceLevel } from './types';
 import { getDiagnosticData } from './services/deviceService';
 import { InfoGrid } from './components/InfoGrid';
 import { AnalysisPanel } from './components/AnalysisPanel';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const App: React.FC = () => {
   const [result, setResult] = useState<DiagnosticResult | null>(null);
@@ -324,7 +325,9 @@ const App: React.FC = () => {
         
         {showAIAnalysis && (
           <div className="mt-4">
-            <AnalysisPanel data={result} />
+            <ErrorBoundary>
+              <AnalysisPanel data={result} isVisible={showAIAnalysis} />
+            </ErrorBoundary>
           </div>
         )}
       </div>
