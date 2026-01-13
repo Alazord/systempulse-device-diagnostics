@@ -85,6 +85,34 @@ const App: React.FC = () => {
     [PerformanceLevel.LOW]: 'snail'
   }[result.performanceLevel];
 
+  // Map level colors to full Tailwind classes
+  const levelColorClasses = {
+    [PerformanceLevel.HIGH]: {
+      border: 'border-emerald-500/20',
+      bgBlur: 'bg-emerald-500/10',
+      badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+      text: 'text-emerald-500',
+      textStrong: 'text-emerald-400',
+      icon: 'text-emerald-400'
+    },
+    [PerformanceLevel.MEDIUM]: {
+      border: 'border-blue-500/20',
+      bgBlur: 'bg-blue-500/10',
+      badge: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+      text: 'text-blue-500',
+      textStrong: 'text-blue-400',
+      icon: 'text-blue-400'
+    },
+    [PerformanceLevel.LOW]: {
+      border: 'border-rose-500/20',
+      bgBlur: 'bg-rose-500/10',
+      badge: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+      text: 'text-rose-500',
+      textStrong: 'text-rose-400',
+      icon: 'text-rose-400'
+    }
+  }[result.performanceLevel];
+
   const storageUsagePercent = result.capabilities.storage.quota && result.capabilities.storage.usage 
     ? (result.capabilities.storage.usage / result.capabilities.storage.quota) * 100 
     : 0;
@@ -141,13 +169,13 @@ const App: React.FC = () => {
       </header>
 
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className={`col-span-1 lg:col-span-2 glass-card rounded-3xl p-8 relative overflow-hidden border-${levelColor}-500/20`}>
-          <div className={`absolute top-0 right-0 p-12 -mt-10 -mr-10 bg-${levelColor}-500/10 blur-3xl rounded-full w-64 h-64`}></div>
+        <div className={`col-span-1 lg:col-span-2 glass-card rounded-3xl p-8 relative overflow-hidden ${levelColorClasses.border}`}>
+          <div className={`absolute top-0 right-0 p-12 -mt-10 -mr-10 ${levelColorClasses.bgBlur} blur-3xl rounded-full w-64 h-64`}></div>
           
           <div className="relative z-10 flex flex-col h-full justify-between">
             <div>
               <div className="flex items-center gap-2 mb-6">
-                <span className={`px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest bg-${levelColor}-500/10 text-${levelColor}-400 border border-${levelColor}-500/30`}>
+                <span className={`px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${levelColorClasses.badge}`}>
                   Live Analysis
                 </span>
                 {result.capabilities.battery.supported && (
@@ -158,17 +186,17 @@ const App: React.FC = () => {
                 )}
               </div>
               <h2 className="text-5xl md:text-6xl font-black text-white mb-4">
-                {result.performanceLevel} <span className={`text-${levelColor}-500`}>Grade</span>
+                {result.performanceLevel} <span className={levelColorClasses.text}>Grade</span>
               </h2>
               <p className="text-slate-400 text-lg max-w-xl leading-relaxed">
-                Your system is currently rated as <strong className={`text-${levelColor}-400`}>{result.performanceLevel}</strong>. 
+                Your system is currently rated as <strong className={levelColorClasses.textStrong}>{result.performanceLevel}</strong>. 
                 {result.capabilities.isMemoryCapped && " RAM reporting is capped at 8GB by your browser for privacy."}
               </p>
             </div>
 
             <div className="flex flex-wrap gap-8 mt-12 border-t border-slate-700/50 pt-8">
               <div className="flex items-center gap-3">
-                <i className={`fas fa-${levelIcon} text-2xl text-${levelColor}-400`}></i>
+                <i className={`fas fa-${levelIcon} text-2xl ${levelColorClasses.icon}`}></i>
                 <div>
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Tier</p>
                   <p className="font-bold uppercase">{result.performanceLevel}</p>
@@ -212,7 +240,7 @@ const App: React.FC = () => {
           <div className="pt-6 border-t border-slate-800">
              <div className="flex items-center justify-between mb-4">
                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Compute Delay</h3>
-               <span className={`text-xs font-bold text-${result.slowDevice.isSlow ? 'rose' : 'emerald'}-400`}>
+               <span className={`text-xs font-bold ${result.slowDevice.isSlow ? 'text-rose-400' : 'text-emerald-400'}`}>
                 {result.slowDevice.isSlow ? 'High' : 'Low'}
                </span>
              </div>
@@ -220,7 +248,7 @@ const App: React.FC = () => {
                <span className="text-3xl font-black text-white">{result.slowDevice.duration?.toFixed(1)}<span className="text-sm font-normal text-slate-500 ml-1">ms</span></span>
                <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
                  <div 
-                  className={`h-full bg-${result.slowDevice.isSlow ? 'rose' : 'emerald'}-500 transition-all duration-700`}
+                  className={`h-full transition-all duration-700 ${result.slowDevice.isSlow ? 'bg-rose-500' : 'bg-emerald-500'}`}
                   style={{ width: `${Math.min((result.slowDevice.duration || 0) / 2, 100)}%` }}
                  ></div>
                </div>

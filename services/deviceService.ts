@@ -17,7 +17,7 @@ const CONFIG = {
   highMemoryThreshold: 8,
   minTextureSize: 4096,
   minVertexUniformVectors: 1024,
-  slowDeviceThreshold: 80,
+  slowDeviceThreshold: 8,
   fallbackCores: 2,
 };
 
@@ -178,7 +178,19 @@ async function runCPUStatsBenchmark(): Promise<BenchmarkResult> {
           ? (results[medianIndex - 1] + results[medianIndex]) / 2
           : results[medianIndex];
         
-        const isSlow = medianDuration > CONFIG.slowDeviceThreshold;
+        // Calculate variance to check consistency
+        const mean = results.reduce((a, b) => a + b, 0) / results.length;
+        const variance = results.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / results.length;
+        const stdDev = Math.sqrt(variance);
+        const coefficientOfVariation = stdDev / mean;
+        
+        // If variance is high (>20%), use a more lenient threshold to avoid false positives
+        // Otherwise use the standard threshold
+        const adjustedThreshold = coefficientOfVariation > 0.2 
+          ? CONFIG.slowDeviceThreshold * 1.5  // 50% more lenient if high variance
+          : CONFIG.slowDeviceThreshold;
+        
+        const isSlow = medianDuration > adjustedThreshold;
         resolve({ isSlow, duration: medianDuration });
       } catch {
         resolve({ isSlow: false, duration: null });
