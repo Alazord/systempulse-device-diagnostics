@@ -196,10 +196,10 @@ const App: React.FC = () => {
         <InfoGrid 
           title="Graphics Engine" 
           items={[
-            { label: 'Renderer', value: result.capabilities.gpu?.renderer || 'Unknown', icon: 'fa-paint-brush', color: 'amber' },
-            { label: 'Vendor', value: result.capabilities.gpu?.vendor || 'Unknown', icon: 'fa-industry', color: 'orange' },
-            { label: 'Texture Limit', value: `${result.capabilities.gpu?.maxTextureSize}px`, icon: 'fa-vector-square', color: 'cyan' },
-            { label: 'GPU Health', value: result.hasWeakGPU ? 'Integrated' : 'Discrete Performance', icon: 'fa-gauge-high', color: result.hasWeakGPU ? 'rose' : 'emerald' },
+            { label: 'Renderer', value: result.capabilities.gpu?.renderer || 'No GPU Detected', icon: 'fa-paint-brush', color: result.capabilities.gpu ? 'amber' : 'rose' },
+            { label: 'Vendor', value: result.capabilities.gpu?.vendor || 'N/A', icon: 'fa-industry', color: result.capabilities.gpu ? 'orange' : 'rose' },
+            { label: 'Texture Limit', value: result.capabilities.gpu ? `${result.capabilities.gpu.maxTextureSize}px` : 'N/A', icon: 'fa-vector-square', color: result.capabilities.gpu ? 'cyan' : 'rose' },
+            { label: 'GPU Health', value: !result.capabilities.gpu ? 'No GPU' : (result.hasWeakGPU ? 'Integrated' : 'Discrete Performance'), icon: 'fa-gauge-high', color: !result.capabilities.gpu ? 'rose' : (result.hasWeakGPU ? 'rose' : 'emerald') },
           ]} 
         />
 

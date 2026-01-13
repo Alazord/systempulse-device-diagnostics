@@ -22,6 +22,17 @@ const CONFIG = {
 };
 
 const WEAK_GPU_PATTERNS = ['intel', 'mali', 'adreno 3', 'adreno 4', 'adreno 5', 'powervr'];
+const SOFTWARE_RENDERER_PATTERNS = [
+  'microsoft basic render driver',
+  'software renderer',
+  'llvmpipe',
+  'mesa llvmpipe',
+  'swiftshader',
+  'software rasterizer',
+  'chromium software renderer',
+  'software rendering',
+  'cpu'
+];
 
 async function getBatteryInfo(): Promise<BatteryInfo> {
   try {
@@ -82,6 +93,21 @@ function detectGPU(): GPUInfo | null {
     const renderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : null;
     const vendor = debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : null;
 
+    // Check if this is software rendering (no actual GPU)
+    if (renderer) {
+      const rendererLower = renderer.toLowerCase();
+      const isSoftwareRenderer = SOFTWARE_RENDERER_PATTERNS.some(pattern => 
+        rendererLower.includes(pattern)
+      );
+      
+      // Also check for suspiciously low texture sizes that indicate software rendering
+      const isLikelySoftware = maxTextureSize < 2048 || maxVertexUniformVectors < 256;
+      
+      if (isSoftwareRenderer || isLikelySoftware) {
+        return null; // No actual GPU present
+      }
+    }
+
     return {
       maxTextureSize: maxTextureSize || 0,
       maxVertexUniformVectors: maxVertexUniformVectors || 0,
@@ -104,29 +130,65 @@ function getConnectionInfo() {
   };
 }
 
+async function runSingleBenchmark(): Promise<number | null> {
+  return new Promise((resolve) => {
+    try {
+      const start = performance.now();
+      let x = 0;
+      for (let i = 0; i < 5e6; i++) {
+        x += Math.sqrt(i);
+      }
+      if (x < 0) console.debug(x);
+      const duration = performance.now() - start;
+      resolve(duration);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 async function runCPUStatsBenchmark(): Promise<BenchmarkResult> {
   return new Promise((resolve) => {
-    const runTest = () => {
+    const runMultipleTests = async () => {
       try {
-        const start = performance.now();
-        let x = 0;
-        for (let i = 0; i < 5e6; i++) {
-          x += Math.sqrt(i);
+        const rounds = 7; // Run 7 rounds for better accuracy
+        const results: number[] = [];
+        
+        // Run benchmarks sequentially to avoid interference
+        for (let i = 0; i < rounds; i++) {
+          const duration = await runSingleBenchmark();
+          if (duration !== null) {
+            results.push(duration);
+          }
+          // Small delay between rounds to let CPU cool down slightly
+          if (i < rounds - 1) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
         }
-        if (x < 0) console.debug(x);
-
-        const duration = performance.now() - start;
-        const isSlow = duration > CONFIG.slowDeviceThreshold;
-        resolve({ isSlow, duration });
+        
+        if (results.length === 0) {
+          resolve({ isSlow: false, duration: null });
+          return;
+        }
+        
+        // Sort and take median
+        results.sort((a, b) => a - b);
+        const medianIndex = Math.floor(results.length / 2);
+        const medianDuration = results.length % 2 === 0
+          ? (results[medianIndex - 1] + results[medianIndex]) / 2
+          : results[medianIndex];
+        
+        const isSlow = medianDuration > CONFIG.slowDeviceThreshold;
+        resolve({ isSlow, duration: medianDuration });
       } catch {
         resolve({ isSlow: false, duration: null });
       }
     };
 
     if (typeof (window as any).requestIdleCallback !== 'undefined') {
-      (window as any).requestIdleCallback(runTest, { timeout: 2000 });
+      (window as any).requestIdleCallback(runMultipleTests, { timeout: 5000 });
     } else {
-      setTimeout(runTest, 50);
+      setTimeout(runMultipleTests, 50);
     }
   });
 }
@@ -154,8 +216,28 @@ export const getDiagnosticData = async (): Promise<DiagnosticResult> => {
   // Browser standard: memory is capped at 8GB to prevent fingerprinting
   const isMemoryCapped = rawMemory === 8;
 
+  // Estimate physical CPU cores from logical cores
+  // Most modern CPUs use hyperthreading/SMT (logical = 2x physical)
+  // For older CPUs or if unsure, assume logical = physical
+  function estimatePhysicalCores(logicalCores: number): number {
+    if (logicalCores <= 2) {
+      return logicalCores; // Likely no hyperthreading on very low core counts
+    }
+    // Most modern CPUs: divide by 2 (hyperthreading)
+    // But check for odd numbers which might indicate no hyperthreading
+    if (logicalCores % 2 === 1) {
+      // Odd number might be actual physical cores (e.g., 3, 5, 7)
+      return logicalCores;
+    }
+    // Even numbers: likely hyperthreading, so divide by 2
+    return Math.floor(logicalCores / 2);
+  }
+
+  const logicalCores = navigator.hardwareConcurrency || CONFIG.fallbackCores;
+  const physicalCores = estimatePhysicalCores(logicalCores);
+
   const capabilities: DeviceCapabilities = {
-    cpuCores: navigator.hardwareConcurrency || CONFIG.fallbackCores,
+    cpuCores: physicalCores,
     deviceMemory: rawMemory,
     isMemoryCapped,
     gpu,
