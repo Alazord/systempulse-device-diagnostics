@@ -189,6 +189,12 @@ const App: React.FC = () => {
     }
   };
 
+  // Use score from deviceService.ts
+  // scoreDetails.totalScore is the number of issues found (0-4)
+  // We display as passed checks / total checks (4 checks total)
+  const totalChecks = 4; // CPU cores, memory, GPU, slow device
+  const passedChecks = totalChecks - result.scoreDetails.totalScore;
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 md:py-12 space-y-12 pb-24">
       <header className="flex flex-col md:flex-row items-center md:justify-between gap-6">
@@ -198,6 +204,9 @@ const App: React.FC = () => {
               <i className="fas fa-microchip text-blue-400 text-xl"></i>
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight text-white">SystemPulse</h1>
+            <div className={`px-4 py-1.5 rounded-xl text-lg font-black ${levelColorClasses.badge} border-2`}>
+              {passedChecks}/{totalChecks}
+            </div>
           </div>
           <p className="text-slate-400 text-sm md:text-base font-medium">Real-time device capability & performance analytics</p>
         </div>
